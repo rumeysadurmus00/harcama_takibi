@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Harcama Takibi</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen py-8 px-4">
+  <div class="max-w-3xl mx-auto space-y-6">
+    <!-- Başlık ve Toplam Özet Kartı -->
+    <div class="bg-white rounded-2xl shadow-sm p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border border-slate-200">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900">Harcama Takibi</h1>
+        <p class="text-sm text-slate-500 mt-1">Harcamalarını ekle, kategorilere göre gör; veriler tarayıcıda saklanır.</p>
+      </div>
+      <div class="bg-indigo-50 border border-indigo-100 rounded-xl px-5 py-3 text-right">
+        <div class="text-xs uppercase tracking-wider font-semibold text-indigo-600">Toplam Harcama</div>
+        <div id="totalAmount" class="text-2xl font-extrabold text-indigo-900 mt-0.5">0,00 ₺</div>
+      </div>
+    </div>
+
+    <!-- Harcama Ekleme Formu -->
+    <form id="expenseForm" class="bg-white rounded-2xl shadow-sm p-6 border border-slate-200 grid grid-cols-1 sm:grid-cols-12 gap-4">
+      <div class="sm:col-span-5">
+        <label for="titleInput" class="block text-sm font-medium text-slate-700 mb-1">Açıklama</label>
+        <input
+          id="titleInput"
+          type="text"
+          required
+          placeholder="Örn: Market alışverişi, Kahve..."
+          class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+
+      <div class="sm:col-span-3">
+        <label for="amountInput" class="block text-sm font-medium text-slate-700 mb-1">Tutar (₺)</label>
+        <input
+          id="amountInput"
+          type="number"
+          step="0.01"
+          min="0.01"
+          required
+          placeholder="150"
+          class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+
+      <div class="sm:col-span-4">
+        <label for="categoryInput" class="block text-sm font-medium text-slate-700 mb-1">Kategori</label>
+        <select
+          id="categoryInput"
+          class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="Market">Market</option>
+          <option value="Yeme-İçme">Yeme-İçme</option>
+          <option value="Ulaşım">Ulaşım</option>
+          <option value="Fatura">Fatura</option>
+          <option value="Diğer">Diğer</option>
+        </select>
+      </div>
+
+      <div class="sm:col-span-12 flex justify-end">
+        <button
+          type="submit"
+          class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm px-6 py-2.5 rounded-xl transition cursor-pointer"
+        >
+          + Harcama Ekle
+        </button>
+      </div>
+    </form>
+
+    <!-- Harcama Tablosu -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+        <h2 class="font-semibold text-slate-800">Harcama Listesi</h2>
+        <button
+          id="clearAllBtn"
+          type="button"
+          class="text-xs font-medium text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
+        >
+          Tümünü Temizle
+        </button>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
+              <th class="py-3 px-6">Açıklama</th>
+              <th class="py-3 px-4">Kategori</th>
+              <th class="py-3 px-4">Tarih</th>
+              <th class="py-3 px-4 text-right">Tutar</th>
+              <th class="py-3 px-6 text-right">İşlem</th>
+            </tr>
+          </thead>
+          <tbody id="expenseTableBody" class="divide-y divide-slate-100 text-sm"></tbody>
+        </table>
+      </div>
+
+      <div id="emptyState" class="py-10 text-center text-slate-400 text-sm hidden">
+        Henüz harcama eklenmemiş. Yukarıdaki formdan ilk harcamanı ekleyebilirsin.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "harcama_takibi_verileri_v1";
+
+    const BADGE_CLASSES = {
+      "Market": "bg-emerald-100 text-emerald-800",
+      "Yeme-İçme": "bg-amber-100 text-amber-800",
+      "Ulaşım": "bg-sky-100 text-sky-800",
+      "Fatura": "bg-purple-100 text-purple-800",
+      "Diğer": "bg-slate-200 text-slate-800"
+    };
+
+    const expenseForm = document.getElementById("expenseForm");
+    const titleInput = document.getElementById("titleInput");
+    const amountInput = document.getElementById("amountInput");
+    const categoryInput = document.getElementById("categoryInput");
+    const tableBody = document.getElementById("expenseTableBody");
+    const totalAmountEl = document.getElementById("totalAmount");
+    const emptyStateEl = document.getElementById("emptyState");
+    const clearAllBtn = document.getElementById("clearAllBtn");
+
+    let expenses = loadExpenses();
+
+    function loadExpenses() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveExpenses() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
+    }
+
+    function formatCurrency(num) {
+      return Number(num).toLocaleString("tr-TR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }) + " ₺";
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function render() {
+      tableBody.innerHTML = "";
+
+      const total = expenses.reduce((sum, item) => sum + Number(item.amount), 0);
+      totalAmountEl.textContent = formatCurrency(total);
+
+      if (expenses.length === 0) {
+        emptyStateEl.classList.remove("hidden");
+        clearAllBtn.classList.add("hidden");
+        return;
+      }
+
+      emptyStateEl.classList.add("hidden");
+      clearAllBtn.classList.remove("hidden");
+
+      expenses.forEach((item) => {
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-50 transition";
+
+        const badgeClass = BADGE_CLASSES[item.category] || BADGE_CLASSES["Diğer"];
+
+        tr.innerHTML = `
+          <td class="py-3.5 px-6 font-medium text-slate-900">${escapeHtml(item.title)}</td>
+          <td class="py-3.5 px-4">
+            <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${badgeClass}">
+              ${escapeHtml(item.category)}
+            </span>
+          </td>
+          <td class="py-3.5 px-4 text-slate-500">${escapeHtml(item.date)}</td>
+          <td class="py-3.5 px-4 text-right font-semibold text-slate-900">${formatCurrency(item.amount)}</td>
+          <td class="py-3.5 px-6 text-right">
+            <button
+              type="button"
+              data-id="${item.id}"
+              class="delete-btn text-xs font-medium text-rose-600 hover:text-rose-800 cursor-pointer"
+            >
+              Sil
+            </button>
+          </td>
+        `;
+
+        tableBody.appendChild(tr);
+      });
+    }
+
+    expenseForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const title = titleInput.value.trim();
+      const amount = parseFloat(amountInput.value);
+      const category = categoryInput.value;
+
+      if (!title || isNaN(amount) || amount <= 0) return;
+
+      const newExpense = {
+        id: Date.now().toString(),
+        title,
+        amount,
+        category,
+        date: new Date().toLocaleDateString("tr-TR")
+      };
+
+      expenses.unshift(newExpense);
+      saveExpenses();
+      render();
+
+      expenseForm.reset();
+      titleInput.focus();
+    });
+
+    tableBody.addEventListener("click", (e) => {
+      if (!e.target.classList.contains("delete-btn")) return;
+      const id = e.target.getAttribute("data-id");
+      expenses = expenses.filter((item) => item.id !== id);
+      saveExpenses();
+      render();
+    });
+
+    clearAllBtn.addEventListener("click", () => {
+      if (!confirm("Tüm harcamaları silmek istediğine emin misin?")) return;
+      expenses = [];
+      saveExpenses();
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
